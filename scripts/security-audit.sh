@@ -1,6 +1,4 @@
-
 #!/usr/bin/env bash
-
 set -u
 
 mkdir -p evidence
@@ -24,13 +22,23 @@ report() {
 }
 
 {
+    
     echo "======================================"
     echo " Linux Server Hardening Audit"
     echo "======================================"
     echo "Date: $(date)"
     echo "Hostname: $(hostname)"
     echo "User: $(id -un)"
-    echo "OS: $(. /etc/os-release && echo "$PRETTY_NAME")"
+
+    OS_NAME=$(
+        awk -F= '$1 == "PRETTY_NAME" {
+            sub(/^"/, "", $2)
+            sub(/"$/, "", $2)
+            print $2
+            exit
+        }' /etc/os-release 2>/dev/null
+    )
+    echo "OS: ${OS_NAME:-Unknown}"
     echo
 
     echo "---- Audit Checks ----"
