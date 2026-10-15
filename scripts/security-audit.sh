@@ -43,6 +43,31 @@ report() {
 
     echo "---- Audit Checks ----"
 
+        echo
+    echo "---- SSH Security Checks ----"
+
+    SSH_CONFIG="/etc/ssh/sshd_config"
+
+    if [ -r "$SSH_CONFIG" ]; then
+        if grep -Eiq '^[[:space:]]*PermitRootLogin[[:space:]]+no([[:space:]]|$)' "$SSH_CONFIG"; then
+            report PASS "SSH root login is explicitly disabled"
+        elif grep -Eiq '^[[:space:]]*PermitRootLogin[[:space:]]+' "$SSH_CONFIG"; then
+            report REVIEW "SSH root login setting needs review"
+        else
+            report REVIEW "SSH root login setting is not explicitly configured"
+        fi
+
+        if grep -Eiq '^[[:space:]]*PasswordAuthentication[[:space:]]+no([[:space:]]|$)' "$SSH_CONFIG"; then
+            report PASS "SSH password authentication is explicitly disabled"
+        elif grep -Eiq '^[[:space:]]*PasswordAuthentication[[:space:]]+' "$SSH_CONFIG"; then
+            report REVIEW "SSH password authentication setting needs review"
+        else
+            report REVIEW "SSH password authentication setting is not explicitly configured"
+        fi
+    else
+        report REVIEW "SSH server configuration is unavailable or unreadable"
+    fi
+
     if command -v bash >/dev/null 2>&1; then
         report PASS "Bash is available"
     else

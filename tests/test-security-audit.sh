@@ -47,6 +47,15 @@ fi
 check "Audit output contains a summary" \
     grep -q -- "---- Summary ----" "$TEMP_OUTPUT"
 
+    check "Audit output includes SSH security checks" \
+    grep -q -- "---- SSH Security Checks ----" "$TEMP_OUTPUT"
+
+check "Audit output checks SSH root login" \
+    grep -q "SSH root login" "$TEMP_OUTPUT"
+
+check "Audit output checks SSH password authentication" \
+    grep -q "SSH password authentication" "$TEMP_OUTPUT"
+
 check "Audit output contains PASS, FAIL and REVIEW counts" \
     grep -Eq 'PASS: [0-9]+' "$TEMP_OUTPUT" &&
     grep -Eq 'FAIL: [0-9]+' "$TEMP_OUTPUT" &&
