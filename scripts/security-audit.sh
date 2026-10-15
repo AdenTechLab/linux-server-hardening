@@ -44,28 +44,53 @@ report() {
     echo "---- Audit Checks ----"
 
         echo
+   
     echo "---- SSH Security Checks ----"
 
-    SSH_CONFIG="/etc/ssh/sshd_config"
+    if command -v sshd >/dev/null 2>&1; then
 
-    if [ -r "$SSH_CONFIG" ]; then
-        if grep -Eiq '^[[:space:]]*PermitRootLogin[[:space:]]+no([[:space:]]|$)' "$SSH_CONFIG"; then
-            report PASS "SSH root login is explicitly disabled"
-        elif grep -Eiq '^[[:space:]]*PermitRootLogin[[:space:]]+' "$SSH_CONFIG"; then
-            report REVIEW "SSH root login setting needs review"
+    SSH_EFFECTIVE_CONFIG=$(sudo -n sshd -T 2>/dev/null) ||
+    SSH_EFFECTIVE_CONFIG=$(sshd -T 2>/dev/null) ||
+    SSH_EFFECTIVE_CONFIG=""
+    
+        if [ -z "$SSH_EFFECTIVE_CONFIG" ]; then
+            report REVIEW "Effective SSH configuration could not be evaluated"
         else
-            report REVIEW "SSH root login setting is not explicitly configured"
-        fi
+            ROOT_LOGIN=$(printf '%s\n' "$SSH_EFFECTIVE_CONFIG" |
+                awk '$1 == "permitrootlogin" {print $2; exit}')
 
-        if grep -Eiq '^[[:space:]]*PasswordAuthentication[[:space:]]+no([[:space:]]|$)' "$SSH_CONFIG"; then
-            report PASS "SSH password authentication is explicitly disabled"
-        elif grep -Eiq '^[[:space:]]*PasswordAuthentication[[:space:]]+' "$SSH_CONFIG"; then
-            report REVIEW "SSH password authentication setting needs review"
-        else
-            report REVIEW "SSH password authentication setting is not explicitly configured"
+            PASSWORD_AUTH=$(printf '%s\n' "$SSH_EFFECTIVE_CONFIG" |
+                awk '$1 == "passwordauthentication" {print $2; exit}')
+
+            case "$ROOT_LOGIN" in
+                no)
+                    report PASS "SSH root login is disabled"
+                    ;;
+                prohibit-password|without-password)
+                    report REVIEW "SSH root login is allowed with key-based authentication"
+                    ;;
+                yes)
+                    report FAIL "SSH root login is enabled"
+                    ;;
+                *)
+                    report REVIEW "SSH root login setting could not be determined"
+                    ;;
+            esac
+
+            case "$PASSWORD_AUTH" in
+                no)
+                    report PASS "SSH password authentication is disabled"
+                    ;;
+                yes)
+                    report REVIEW "SSH password authentication is enabled"
+                    ;;
+                *)
+                    report REVIEW "SSH password authentication setting could not be determined"
+                    ;;
+            esac
         fi
     else
-        report REVIEW "SSH server configuration is unavailable or unreadable"
+        report REVIEW "SSH server tools are unavailable in this environment"
     fi
 
     if command -v bash >/dev/null 2>&1; then
@@ -78,16 +103,6 @@ report() {
         report PASS "Network socket inspection tool is available"
     else
         report REVIEW "ss is unavailable"
-    fi
-
-    if command -v sshd >/dev/null 2>&1; then
-        if sshd -T >/dev/null 2>&1; then
-            report PASS "SSH configuration can be evaluated"
-        else
-            report REVIEW "SSH configuration could not be evaluated"
-        fi
-    else
-        report REVIEW "SSH server is not available in this environment"
     fi
 
     if command -v ufw >/dev/null 2>&1; then

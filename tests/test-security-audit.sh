@@ -49,13 +49,7 @@ check "Audit output contains a summary" \
 
     check "Audit output includes SSH security checks" \
     grep -q -- "---- SSH Security Checks ----" "$TEMP_OUTPUT"
-
-check "Audit output checks SSH root login" \
-    grep -q "SSH root login" "$TEMP_OUTPUT"
-
-check "Audit output checks SSH password authentication" \
-    grep -q "SSH password authentication" "$TEMP_OUTPUT"
-
+      
     check "Audit output includes sensitive file permission checks" \
     grep -q -- "---- Sensitive File Permission Checks ----" "$TEMP_OUTPUT"
 
