@@ -56,6 +56,18 @@ check "Audit output checks SSH root login" \
 check "Audit output checks SSH password authentication" \
     grep -q "SSH password authentication" "$TEMP_OUTPUT"
 
+    check "Audit output includes sensitive file permission checks" \
+    grep -q -- "---- Sensitive File Permission Checks ----" "$TEMP_OUTPUT"
+
+check "Audit checks /etc/passwd permissions" \
+    grep -q "/etc/passwd:" "$TEMP_OUTPUT"
+
+check "Audit checks /etc/shadow permissions" \
+    grep -q "/etc/shadow:" "$TEMP_OUTPUT"
+
+check "Audit checks SSH configuration permissions" \
+    grep -q "/etc/ssh/sshd_config:" "$TEMP_OUTPUT"
+
 check "Audit output contains PASS, FAIL and REVIEW counts" \
     grep -Eq 'PASS: [0-9]+' "$TEMP_OUTPUT" &&
     grep -Eq 'FAIL: [0-9]+' "$TEMP_OUTPUT" &&

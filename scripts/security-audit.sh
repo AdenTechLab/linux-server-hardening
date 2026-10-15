@@ -109,6 +109,41 @@ report() {
     else
         report FAIL "Operating system information is unavailable"
     fi
+    echo
+
+    echo "---- Sensitive File Permission Checks ----"
+
+       check_file_permissions() {
+        local file="$1"
+        local description="$2"
+        local allowed_mode="$3"
+        local actual_mode
+        local mode_value
+        local disallowed_bits
+
+        if [ ! -e "$file" ]; then
+            report REVIEW "$description: file is unavailable"
+            return
+        fi
+
+        actual_mode=$(stat -c '%a' "$file" 2>/dev/null) || {
+            report REVIEW "$description: permissions cannot be inspected"
+            return
+        }
+
+        mode_value=$((8#$actual_mode))
+        disallowed_bits=$((mode_value & ~allowed_mode))
+
+        if [ "$disallowed_bits" -ne 0 ]; then
+            report REVIEW "$description: permissions may be too broad (mode $actual_mode)"
+        else
+            report PASS "$description: permissions meet the basic policy (mode $actual_mode)"
+        fi
+    }
+
+    check_file_permissions "/etc/passwd" "/etc/passwd" 0644
+    check_file_permissions "/etc/shadow" "/etc/shadow" 0640
+    check_file_permissions "/etc/ssh/sshd_config" "/etc/ssh/sshd_config" 0600
 
     echo
     echo "---- Summary ----"
