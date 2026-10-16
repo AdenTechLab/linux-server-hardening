@@ -150,6 +150,30 @@ check_file_permissions() {
     else
         report REVIEW "UFW is unavailable in this environment"
     fi
+     
+    echo
+    echo "---- Patch Status Checks ----"
+
+    if command -v apt >/dev/null 2>&1; then
+        if UPDATE_OUTPUT=$(apt list --upgradable 2>/dev/null); then
+            if printf '%s\n' "$UPDATE_OUTPUT" |
+                awk 'NR > 1 && /^[^[:space:]]+\/[^[:space:]]+/ {
+                    found = 1
+                }
+                END {
+                    exit !found
+                }'; then
+                report REVIEW "Package updates are available" \
+                    "Review available updates and apply them after appropriate testing."
+            else
+                report PASS "No package updates reported by APT package lists"
+            fi
+        else
+            report REVIEW "Package update status could not be checked"
+        fi
+    else
+        report REVIEW "APT package manager is unavailable in this environment"
+    fi
 
     if [ -r /etc/os-release ]; then
         report PASS "Operating system information is readable"

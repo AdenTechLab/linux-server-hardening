@@ -230,6 +230,58 @@ run_firewall_audit unknown
 check "Unknown firewall status produces REVIEW" \
     grep -Fq "[REVIEW] Firewall status could not be confirmed" "$TEMP_OUTPUT"
 
+# Mock APT so patch tests do not depend on real package updates.
+cat > "$MOCK_BIN/apt" <<'MOCK_APT'
+#!/usr/bin/env bash
+
+if [ "${1:-}" = "list" ] && [ "${2:-}" = "--upgradable" ]; then
+    case "${MOCK_APT_STATUS:-updates}" in
+        updates)
+            printf 'Listing...\nexample-package/jammy-updates 1.2 amd64 [upgradable from: 1.1]\n'
+            exit 0
+            ;;
+        none)
+            printf 'Listing...\n'
+            exit 0
+            ;;
+        fail)
+            echo "Unable to retrieve package information" >&2
+            exit 1
+            ;;
+    esac
+fi
+
+exit 1
+MOCK_APT
+
+chmod +x "$MOCK_BIN/apt"
+
+run_patch_audit() {
+    PASSWD_FILE="$SAFE_FILE" \
+    SHADOW_FILE="$SAFE_FILE" \
+    SSH_CONFIG_FILE="$SAFE_FILE" \
+    MOCK_ROOT_LOGIN=no \
+    MOCK_PASSWORD_AUTH=no \
+    MOCK_APT_STATUS="$1" \
+    PATH="$MOCK_BIN:$PATH" \
+        bash "$SCRIPT" > "$TEMP_OUTPUT" 2>&1
+}
+
+echo
+echo "---- Patch Status Behaviour Tests ----"
+
+run_patch_audit updates
+check "Available updates produce REVIEW" \
+    grep -Fq "[REVIEW] Package updates are available" "$TEMP_OUTPUT"
+
+run_patch_audit none
+check "No reported updates produce PASS" \
+    grep -Fq "[PASS] No package updates reported by APT package lists" "$TEMP_OUTPUT"
+
+run_patch_audit fail
+check "Failed patch status check produces REVIEW" \
+    grep -Fq "[REVIEW] Package update status could not be checked" "$TEMP_OUTPUT"
+
 echo
 echo "Results: $PASS passed, $FAIL failed"
 
