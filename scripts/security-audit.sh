@@ -11,8 +11,13 @@ REVIEW=0
 report() {
     local status="$1"
     local message="$2"
+    local recommendation="${3:-}"
 
     printf '[%s] %s\n' "$status" "$message"
+
+    if [ -n "$recommendation" ]; then
+        printf '  Recommendation: %s\n' "$recommendation"
+    fi
 
     case "$status" in
         PASS) PASS=$((PASS + 1)) ;;
@@ -70,7 +75,8 @@ report() {
                     report REVIEW "SSH root login is allowed with key-based authentication"
                     ;;
                 yes)
-                    report FAIL "SSH root login is enabled"
+                    report FAIL "SSH root login is enabled" \
+                    "Consider setting PermitRootLogin no after confirming an alternative administrative access method."
                     ;;
                 *)
                     report REVIEW "SSH root login setting could not be determined"
@@ -82,7 +88,8 @@ report() {
                     report PASS "SSH password authentication is disabled"
                     ;;
                 yes)
-                    report REVIEW "SSH password authentication is enabled"
+                    report REVIEW "SSH password authentication is enabled" \
+    "Review whether key-based authentication can be used and password login safely disabled."
                     ;;
                 *)
                     report REVIEW "SSH password authentication setting could not be determined"
