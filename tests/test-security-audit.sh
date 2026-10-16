@@ -160,7 +160,6 @@ MOCK_STAT
 
 chmod +x "$MOCK_BIN/stat"
 
-# Run the audit using the temporary files and mock commands.
 run_permission_audit() {
     PASSWD_FILE="$1" \
     SHADOW_FILE="$2" \
@@ -189,6 +188,47 @@ check "Missing file produces REVIEW" \
 run_permission_audit "$STAT_FAIL_FILE" "$SAFE_FILE" "$SAFE_FILE"
 check "Permission inspection failure produces REVIEW" \
     grep -Fq "/etc/passwd: permissions cannot be inspected" "$TEMP_OUTPUT"
+
+# Mock UFW so firewall tests never change real firewall settings.
+cat > "$MOCK_BIN/ufw" <<'MOCK_UFW'
+#!/usr/bin/env bash
+
+if [ "${1:-}" = "status" ]; then
+    printf 'Status: %s\n' "${MOCK_UFW_STATUS:-unknown}"
+    exit 0
+fi
+
+echo "Unsupported mock UFW command"
+exit 1
+MOCK_UFW
+
+chmod +x "$MOCK_BIN/ufw"
+
+run_firewall_audit() {
+    PASSWD_FILE="$SAFE_FILE" \
+    SHADOW_FILE="$SAFE_FILE" \
+    SSH_CONFIG_FILE="$SAFE_FILE" \
+    MOCK_ROOT_LOGIN=no \
+    MOCK_PASSWORD_AUTH=no \
+    MOCK_UFW_STATUS="$1" \
+    PATH="$MOCK_BIN:$PATH" \
+        bash "$SCRIPT" > "$TEMP_OUTPUT" 2>&1
+}
+
+echo
+echo "---- Firewall Behaviour Tests ----"
+
+run_firewall_audit active
+check "Active firewall produces PASS" \
+    grep -Fq "[PASS] UFW reports that the firewall is active" "$TEMP_OUTPUT"
+
+run_firewall_audit inactive
+check "Inactive firewall produces FAIL" \
+    grep -Fq "[FAIL] UFW reports that the firewall is inactive" "$TEMP_OUTPUT"
+
+run_firewall_audit unknown
+check "Unknown firewall status produces REVIEW" \
+    grep -Fq "[REVIEW] Firewall status could not be confirmed" "$TEMP_OUTPUT"
 
 echo
 echo "Results: $PASS passed, $FAIL failed"
