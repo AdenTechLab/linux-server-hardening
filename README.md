@@ -1,18 +1,20 @@
 
 # Linux Server Hardening 🔐
 
-A hands-on Linux administration and cybersecurity project focused on identifying common security misconfigurations through Bash automation, SSH configuration auditing and sensitive file permission checks.
+A hands-on Linux administration and cybersecurity project focused on identifying common security misconfigurations through Bash automation, SSH configuration auditing, sensitive file permission checks, firewall status checks and package update auditing.
 
 The project includes an automated security audit script, remediation recommendations, automated tests, ShellCheck validation and a GitHub Actions CI pipeline.
 
-**Project status:** Active development  
-**Automated tests:** 16 passed, 0 failed  
+**Project status:** Core features implemented  
+**Automated tests:** 26 passed, 0 failed  
 **CI status:** Passing
 
 ## 🎯 Objectives
 
 - Audit SSH security settings and identify potentially insecure configurations.
 - Review permissions on sensitive Linux system files.
+- Check firewall status and identify potentially inactive firewall protection.
+- Identify available package updates using APT package lists.
 - Generate clear `PASS`, `FAIL` and `REVIEW` findings.
 - Provide remediation recommendations for selected security issues.
 - Automate repeatable security checks using Bash.
@@ -26,7 +28,9 @@ The project includes an automated security audit script, remediation recommendat
 - **Scripting:** Bash
 - **SSH:** OpenSSH
 - **File permissions:** Linux permissions and `stat`
-- **Testing:** Automated Bash test suite
+- **Firewall:** UFW
+- **Package management:** APT
+- **Testing:** Automated Bash test suite with mocked commands
 - **Static analysis:** ShellCheck
 - **Version control:** Git and GitHub
 - **CI/CD:** GitHub Actions
@@ -53,7 +57,25 @@ The script checks permissions on:
 
 It compares observed permission modes against basic project policies and flags permissions that may be too broad.
 
-These checks identify potential misconfigurations. Permission requirements can vary by Linux distribution and security policy, so findings should be reviewed in context.
+Permission requirements can vary by Linux distribution and security policy, so findings should be reviewed in context.
+
+### Firewall Status Auditing
+
+- Checks whether UFW reports an active or inactive firewall.
+- Reports an active firewall as `PASS`.
+- Reports an inactive firewall as `FAIL`.
+- Reports an unknown or unconfirmed firewall status as `REVIEW`.
+- Does not modify firewall rules automatically.
+
+### Patch Status Auditing
+
+- Checks APT package lists for available package updates.
+- Reports available updates as `REVIEW`.
+- Reports no updates in the available package lists as `PASS`.
+- Reports an unsuccessful update-status check as `REVIEW`.
+- Does not install updates or automatically modify installed packages.
+
+**Important:** Patch status results depend on the existing APT package lists, which may be out of date. The audit does not refresh package lists or guarantee that all security updates have been identified.
 
 ### Audit Reporting
 
@@ -63,36 +85,41 @@ The script produces a timestamped report in the `evidence/` directory and displa
 - `FAIL`: Findings identified as failing a security check.
 - `REVIEW`: Checks requiring further investigation or that could not be fully verified.
 
-Selected SSH findings include remediation recommendations. The script reports findings without automatically changing system configuration.
+Selected findings include remediation recommendations. The script reports findings without automatically changing system configuration.
 
 ## 🧪 Automated Testing
 
 The test suite is located at `tests/test-security-audit.sh`.
 
-It currently contains **16 automated tests**, including checks for:
+The project currently contains **26 automated tests**, covering:
 
-- Audit script existence and readability.
-- Bash syntax validation.
-- Successful script execution.
-- Audit summary and finding counts.
-- SSH security check reporting.
-- Sensitive file permission check reporting.
-- SSH behaviour under controlled test scenarios.
+- Audit script existence, readability and Bash syntax.
+- Successful execution and audit summary reporting.
+- SSH security behaviour using mocked commands.
+- Sensitive file permission behaviour, including broad permissions, missing files and inspection failures.
+- Firewall behaviour for active, inactive and unknown status.
+- Patch status behaviour for available updates, no reported updates and failed checks.
 
-Four SSH behaviour tests use mocked commands to verify that:
+The SSH behaviour tests verify that:
 
 1. Disabled root login produces `PASS`.
 2. Enabled root login produces `FAIL`.
 3. Enabled password authentication produces `REVIEW`.
 4. Unavailable SSH configuration produces `REVIEW`.
 
-Latest local test result:
+The firewall tests verify active, inactive and unknown status outcomes.
+
+The patch status tests verify available updates, no reported updates and an unsuccessful status check.
+
+The test suite uses controlled mock commands to test selected outcomes without installing system updates or changing real firewall settings.
+
+Latest verified local test result:
 
 ```text
-Results: 16 passed, 0 failed
+Results: 26 passed, 0 failed
 ```
 
-These tests validate the behaviour covered by the test suite. They do not prove that every security control works correctly on every Linux distribution.
+These tests validate the scenarios covered by the test suite. They do not prove that every security control works correctly on every Linux distribution.
 
 ## ⚙️ Continuous Integration
 
@@ -104,10 +131,11 @@ The CI workflow includes:
 - Bash syntax validation.
 - Automated test execution.
 
-The workflow has passed on the latest verified run.
+The latest verified workflow run passed.
 
 - **Repository:** [AdenTechLab/linux-server-hardening](https://github.com/AdenTechLab/linux-server-hardening)
 - **Workflow:** `.github/workflows/security-audit.yml`
+- **Actions:** [View workflow runs](https://github.com/AdenTechLab/linux-server-hardening/actions)
 
 ## 🔐 Risk Mitigation
 
@@ -116,11 +144,13 @@ The workflow has passed on the latest verified run.
 | SSH root login enabled | Effective SSH setting check | Identifies direct root-login exposure |
 | SSH password authentication enabled | Effective SSH setting check | Highlights authentication settings requiring review |
 | Excessive file permissions | Permission policy checks | Identifies potentially over-permissive system files |
+| Inactive UFW firewall | Firewall status check | Identifies a potentially unprotected host firewall |
+| Available package updates | APT patch status check | Highlights systems that may require updates |
 | Undetected configuration issues | Automated Bash audit | Makes selected checks repeatable |
 | Inconsistent validation | Automated tests and ShellCheck | Helps catch regressions and scripting errors |
 | Limited visibility of findings | Summary report and recommendations | Makes results easier to review |
 
-Additional controls, including firewall configuration, automatic security updates and running-service hardening, remain planned work rather than completed features.
+The audit provides selected checks and does not automatically remediate detected issues.
 
 ## 🖥️ Manual Security Validation
 
@@ -156,17 +186,24 @@ sudo ss -tulpen
 systemctl --failed
 ```
 
-These commands are manual validation examples. Including them in this README does not mean the project automatically performs all these checks.
+**Review available package updates**
+
+```bash
+apt list --upgradable
+```
+
+These commands are manual validation examples. Including them in this README does not mean the project automatically performs every command or check listed here.
 
 ## 🚀 Future Improvements
 
-- Add automated tests for sensitive file permission policy decisions.
-- Expand audit coverage for firewall configuration and listening services.
-- Add checks for system updates and security patch status.
 - Improve SSH checks for connection-specific `Match` configuration rules.
-- Expand remediation recommendations for file permission findings.
+- Expand firewall checks to inspect individual rules.
+- Add automated tests for additional file permission policy decisions.
+- Expand checks for listening services and exposed network ports.
+- Improve remediation recommendations for file permission findings.
 - Add representative before-and-after audit reports.
 - Document verification procedures for each implemented security control.
+- Test the audit against a dedicated Ubuntu Server virtual machine.
 
 ## 📈 Skills Demonstrated
 
@@ -176,6 +213,7 @@ This project demonstrates practical work with:
 - Bash scripting and automation.
 - SSH security configuration.
 - Linux file permissions.
+- Firewall and package update status checks.
 - Security auditing and misconfiguration detection.
 - Automated testing and static analysis.
 - Git, GitHub and version control.
@@ -189,6 +227,7 @@ These skills are relevant to entry-level DevOps, Cloud Engineering, Linux Admini
 - [Ubuntu Server Documentation](https://documentation.ubuntu.com/server/)
 - [OpenSSH Documentation](https://www.openssh.com/manual.html)
 - [UFW Manual](https://manpages.ubuntu.com/manpages/noble/en/man8/ufw.8.html)
+- [APT Documentation](https://manpages.ubuntu.com/manpages/noble/en/man8/apt.8.html)
 - [Bash Reference Manual](https://www.gnu.org/software/bash/manual/)
 - [ShellCheck](https://www.shellcheck.net/)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
@@ -199,6 +238,8 @@ This is an educational project developed and tested in a Codespaces container. R
 
 Some checks may return `REVIEW` when configuration files, tools or permissions are unavailable. Permission policies may also need adjustment for different distributions.
 
-The audit provides selected checks and recommendations; it is not a comprehensive vulnerability scanner and does not guarantee that a system is secure. Findings should be investigated and verified against the target system's security requirements.
+Patch status results depend on locally available APT package lists and may not reflect the latest published updates.
+
+The audit provides selected checks and recommendations. It is not a comprehensive vulnerability scanner and does not guarantee that a system is secure. Findings should be investigated and verified against the target system's security requirements.
 
 Test configuration changes in a controlled environment before applying them to production systems. Maintain an alternative administrative access method before changing SSH or firewall settings.
