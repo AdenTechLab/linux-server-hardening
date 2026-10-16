@@ -6,9 +6,12 @@ SCRIPT="scripts/security-audit.sh"
 PASS=0
 FAIL=0
 TEMP_OUTPUT=$(mktemp)
+MOCK_BIN=$(mktemp -d)
+TEMP_DIR=$(mktemp -d)
 
 cleanup() {
     rm -f "$TEMP_OUTPUT"
+    rm -rf "$MOCK_BIN" "$TEMP_DIR"
 }
 trap cleanup EXIT
 
@@ -47,10 +50,10 @@ fi
 check "Audit output contains a summary" \
     grep -q -- "---- Summary ----" "$TEMP_OUTPUT"
 
-    check "Audit output includes SSH security checks" \
+check "Audit output includes SSH security checks" \
     grep -q -- "---- SSH Security Checks ----" "$TEMP_OUTPUT"
-      
-    check "Audit output includes sensitive file permission checks" \
+
+check "Audit output includes sensitive file permission checks" \
     grep -q -- "---- Sensitive File Permission Checks ----" "$TEMP_OUTPUT"
 
 check "Audit checks /etc/passwd permissions" \
@@ -67,11 +70,7 @@ check "Audit output contains PASS, FAIL and REVIEW counts" \
     grep -Eq 'FAIL: [0-9]+' "$TEMP_OUTPUT" &&
     grep -Eq 'REVIEW: [0-9]+' "$TEMP_OUTPUT"
 
-echo
-
 # Set up mock SSH commands for controlled tests.
-MOCK_BIN=$(mktemp -d)
-
 cat > "$MOCK_BIN/sshd" <<'MOCK_SSHD'
 #!/usr/bin/env bash
 
@@ -85,9 +84,11 @@ MOCK_SSHD
 
 cat > "$MOCK_BIN/sudo" <<'MOCK_SUDO'
 #!/usr/bin/env bash
+
 if [ "${1:-}" = "-n" ]; then
     shift
 fi
+
 exec "$@"
 MOCK_SUDO
 
@@ -120,8 +121,76 @@ run_mocked_ssh_audit no no 1
 check "Unavailable SSH configuration produces REVIEW" \
     grep -Fq "[REVIEW] Effective SSH configuration could not be evaluated" "$TEMP_OUTPUT"
 
-rm -rf "$MOCK_BIN"
+# Create temporary files for permission behaviour tests.
+SAFE_FILE="$TEMP_DIR/safe-file"
+BROAD_FILE="$TEMP_DIR/broad-file"
+STAT_FAIL_FILE="$TEMP_DIR/stat-fail-file"
+MISSING_FILE="$TEMP_DIR/missing-file"
 
+touch "$SAFE_FILE" "$BROAD_FILE" "$STAT_FAIL_FILE"
+chmod 644 "$SAFE_FILE"
+chmod 666 "$BROAD_FILE"
+chmod 644 "$STAT_FAIL_FILE"
+
+# Mock stat so permission checks can be tested predictably.
+REAL_STAT=$(command -v stat)
+export REAL_STAT
+
+cat > "$MOCK_BIN/stat" <<'MOCK_STAT'
+#!/usr/bin/env bash
+
+for argument in "$@"; do
+    case "$argument" in
+        */stat-fail-file)
+            exit 1
+            ;;
+        */safe-file)
+            printf '644\n'
+            exit 0
+            ;;
+        */broad-file)
+            printf '666\n'
+            exit 0
+            ;;
+    esac
+done
+
+exec "$REAL_STAT" "$@"
+MOCK_STAT
+
+chmod +x "$MOCK_BIN/stat"
+
+# Run the audit using the temporary files and mock commands.
+run_permission_audit() {
+    PASSWD_FILE="$1" \
+    SHADOW_FILE="$2" \
+    SSH_CONFIG_FILE="$3" \
+    MOCK_ROOT_LOGIN=no \
+    MOCK_PASSWORD_AUTH=no \
+    PATH="$MOCK_BIN:$PATH" \
+        bash "$SCRIPT" > "$TEMP_OUTPUT" 2>&1
+}
+
+echo
+echo "---- File Permission Behaviour Tests ----"
+
+run_permission_audit "$SAFE_FILE" "$SAFE_FILE" "$SAFE_FILE"
+check "Acceptable file permissions produce PASS" \
+    grep -Fq "permissions meet the basic policy (mode 644)" "$TEMP_OUTPUT"
+
+run_permission_audit "$BROAD_FILE" "$SAFE_FILE" "$SAFE_FILE"
+check "Overly broad file permissions produce REVIEW" \
+    grep -Fq "permissions may be too broad (mode 666)" "$TEMP_OUTPUT"
+
+run_permission_audit "$MISSING_FILE" "$SAFE_FILE" "$SAFE_FILE"
+check "Missing file produces REVIEW" \
+    grep -Fq "/etc/passwd: file is unavailable" "$TEMP_OUTPUT"
+
+run_permission_audit "$STAT_FAIL_FILE" "$SAFE_FILE" "$SAFE_FILE"
+check "Permission inspection failure produces REVIEW" \
+    grep -Fq "/etc/passwd: permissions cannot be inspected" "$TEMP_OUTPUT"
+
+echo
 echo "Results: $PASS passed, $FAIL failed"
 
 if [ "$FAIL" -gt 0 ]; then

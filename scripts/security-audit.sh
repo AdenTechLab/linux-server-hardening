@@ -26,8 +26,35 @@ report() {
     esac
 }
 
+check_file_permissions() {
+    local file="$1"
+    local description="$2"
+    local allowed_mode="$3"
+    local actual_mode
+    local mode_value
+    local disallowed_bits
+
+    if [ ! -e "$file" ]; then
+        report REVIEW "$description: file is unavailable"
+        return
+    fi
+
+    actual_mode=$(stat -c '%a' "$file" 2>/dev/null) || {
+        report REVIEW "$description: permissions cannot be inspected"
+        return
+    }
+
+    mode_value=$((8#$actual_mode))
+    disallowed_bits=$((mode_value & ~allowed_mode))
+
+    if [ "$disallowed_bits" -ne 0 ]; then
+        report REVIEW "$description: permissions may be too broad (mode $actual_mode)"
+    else
+        report PASS "$description: permissions meet the basic policy (mode $actual_mode)"
+    fi
+}
+
 {
-    
     echo "======================================"
     echo " Linux Server Hardening Audit"
     echo "======================================"
@@ -47,17 +74,15 @@ report() {
     echo
 
     echo "---- Audit Checks ----"
+    echo
 
-        echo
-   
     echo "---- SSH Security Checks ----"
 
     if command -v sshd >/dev/null 2>&1; then
+        SSH_EFFECTIVE_CONFIG=$(sudo -n sshd -T 2>/dev/null) ||
+            SSH_EFFECTIVE_CONFIG=$(sshd -T 2>/dev/null) ||
+            SSH_EFFECTIVE_CONFIG=""
 
-    SSH_EFFECTIVE_CONFIG=$(sudo -n sshd -T 2>/dev/null) ||
-    SSH_EFFECTIVE_CONFIG=$(sshd -T 2>/dev/null) ||
-    SSH_EFFECTIVE_CONFIG=""
-    
         if [ -z "$SSH_EFFECTIVE_CONFIG" ]; then
             report REVIEW "Effective SSH configuration could not be evaluated"
         else
@@ -76,7 +101,7 @@ report() {
                     ;;
                 yes)
                     report FAIL "SSH root login is enabled" \
-                    "Consider setting PermitRootLogin no after confirming an alternative administrative access method."
+                        "Consider setting PermitRootLogin no after confirming an alternative administrative access method."
                     ;;
                 *)
                     report REVIEW "SSH root login setting could not be determined"
@@ -89,7 +114,7 @@ report() {
                     ;;
                 yes)
                     report REVIEW "SSH password authentication is enabled" \
-    "Review whether key-based authentication can be used and password login safely disabled."
+                        "Review whether key-based authentication can be used and password login safely disabled."
                     ;;
                 *)
                     report REVIEW "SSH password authentication setting could not be determined"
@@ -131,41 +156,17 @@ report() {
     else
         report FAIL "Operating system information is unavailable"
     fi
-    echo
 
+    echo
     echo "---- Sensitive File Permission Checks ----"
 
-       check_file_permissions() {
-        local file="$1"
-        local description="$2"
-        local allowed_mode="$3"
-        local actual_mode
-        local mode_value
-        local disallowed_bits
+    PASSWD_FILE="${PASSWD_FILE:-/etc/passwd}"
+    SHADOW_FILE="${SHADOW_FILE:-/etc/shadow}"
+    SSH_CONFIG_FILE="${SSH_CONFIG_FILE:-/etc/ssh/sshd_config}"
 
-        if [ ! -e "$file" ]; then
-            report REVIEW "$description: file is unavailable"
-            return
-        fi
-
-        actual_mode=$(stat -c '%a' "$file" 2>/dev/null) || {
-            report REVIEW "$description: permissions cannot be inspected"
-            return
-        }
-
-        mode_value=$((8#$actual_mode))
-        disallowed_bits=$((mode_value & ~allowed_mode))
-
-        if [ "$disallowed_bits" -ne 0 ]; then
-            report REVIEW "$description: permissions may be too broad (mode $actual_mode)"
-        else
-            report PASS "$description: permissions meet the basic policy (mode $actual_mode)"
-        fi
-    }
-
-    check_file_permissions "/etc/passwd" "/etc/passwd" 0644
-    check_file_permissions "/etc/shadow" "/etc/shadow" 0640
-    check_file_permissions "/etc/ssh/sshd_config" "/etc/ssh/sshd_config" 0600
+    check_file_permissions "$PASSWD_FILE" "/etc/passwd" 0644
+    check_file_permissions "$SHADOW_FILE" "/etc/shadow" 0640
+    check_file_permissions "$SSH_CONFIG_FILE" "/etc/ssh/sshd_config" 0600
 
     echo
     echo "---- Summary ----"
