@@ -1,92 +1,144 @@
+
 # Linux Server Hardening 🔐
 
-A hands-on Linux system administration and cybersecurity project focused on hardening an Ubuntu Server environment through SSH security, file permission auditing, security configuration checks and Bash automation.
+A hands-on Linux administration and cybersecurity project focused on identifying common security misconfigurations through Bash automation, SSH configuration auditing and sensitive file permission checks.
 
-The project includes an automated security audit script, test validation and static analysis to help identify potential Linux server misconfigurations.
+The project includes an automated security audit script, remediation recommendations, automated tests, ShellCheck validation and a GitHub Actions CI pipeline.
+
+**Project status:** Active development  
+**Automated tests:** 16 passed, 0 failed  
+**CI status:** Passing
 
 ## 🎯 Objectives
 
-- Strengthen SSH security and restrict direct root login.
-- Configure firewall rules using UFW.
-- Apply system updates and automatic security patches.
-- Review running services and listening network ports.
-- Audit sensitive system file permissions.
-- Automate security checks using Bash scripting.
-- Validate script functionality through automated tests.
-- Document security findings and remediation steps.
+- Audit SSH security settings and identify potentially insecure configurations.
+- Review permissions on sensitive Linux system files.
+- Generate clear `PASS`, `FAIL` and `REVIEW` findings.
+- Provide remediation recommendations for selected security issues.
+- Automate repeatable security checks using Bash.
+- Validate script behaviour through automated testing.
+- Integrate static analysis and testing into GitHub Actions.
+- Document findings, limitations and future security improvements.
 
 ## 🛠️ Technologies
 
-- **Operating System:** Ubuntu Server
+- **Operating system:** Ubuntu-based Codespaces environment
 - **Scripting:** Bash
-- **Remote Access:** OpenSSH
-- **Firewall:** UFW
-- **Package Management:** APT
-- **Testing:** Automated shell script tests
-- **Static Analysis:** ShellCheck
-- **Version Control:** Git and GitHub
-- **Virtualisation:** VirtualBox
+- **SSH:** OpenSSH
+- **File permissions:** Linux permissions and `stat`
+- **Testing:** Automated Bash test suite
+- **Static analysis:** ShellCheck
+- **Version control:** Git and GitHub
+- **CI/CD:** GitHub Actions
 
-## 🔍 Security Audit Automation
+## 🔍 Security Audit Features
 
-The Bash security audit script checks important areas of Linux server security and generates a summary of its findings.
+The audit script, `scripts/security-audit.sh`, performs selected security checks in the environment where it runs.
 
-Current audit capabilities include:
+### SSH Configuration Auditing
 
-- SSH security configuration checks.
-- Sensitive file permission checks.
-- `/etc/passwd` permission validation.
-- `/etc/shadow` permission validation.
-- SSH configuration file permission checks.
-- Summary reporting with `PASS`, `FAIL` and `REVIEW` counts.
+- Evaluates effective SSH settings using `sshd -T` when available.
+- Checks whether SSH root login is disabled.
+- Checks whether password authentication is enabled.
+- Reports unavailable or unevaluable configuration as `REVIEW`.
+- Provides remediation guidance for selected SSH findings.
 
-These checks help identify potential security misconfigurations that may require further investigation or remediation.
+### Sensitive File Permission Auditing
 
-## 🧪 Testing and Validation
+The script checks permissions on:
 
-The audit script has been tested to verify its functionality and reporting behaviour.
+- `/etc/passwd`
+- `/etc/shadow`
+- `/etc/ssh/sshd_config`
 
-| Validation Check | Result |
-|---|---|
-| Audit script executes successfully | PASS |
-| Audit output includes a summary | PASS |
-| SSH security checks are included | PASS |
-| Sensitive file permission checks are included | PASS |
-| `/etc/passwd` permissions are checked | PASS |
-| `/etc/shadow` permissions are checked | PASS |
-| SSH configuration permissions are checked | PASS |
-| PASS, FAIL and REVIEW counts are reported | PASS |
-| Automated test suite | 12 passed, 0 failed |
-| ShellCheck static analysis | PASS |
+It compares observed permission modes against basic project policies and flags permissions that may be too broad.
 
-**Testing status:** The automated test suite and ShellCheck validation have passed. These results confirm the checks tested are working as expected, but do not independently prove that the server is fully secure.
+These checks identify potential misconfigurations. Permission requirements can vary by Linux distribution and security policy, so findings should be reviewed in context.
+
+### Audit Reporting
+
+The script produces a timestamped report in the `evidence/` directory and displays a summary containing:
+
+- `PASS`: Checks that meet the implemented policy.
+- `FAIL`: Findings identified as failing a security check.
+- `REVIEW`: Checks requiring further investigation or that could not be fully verified.
+
+Selected SSH findings include remediation recommendations. The script reports findings without automatically changing system configuration.
+
+## 🧪 Automated Testing
+
+The test suite is located at `tests/test-security-audit.sh`.
+
+It currently contains **16 automated tests**, including checks for:
+
+- Audit script existence and readability.
+- Bash syntax validation.
+- Successful script execution.
+- Audit summary and finding counts.
+- SSH security check reporting.
+- Sensitive file permission check reporting.
+- SSH behaviour under controlled test scenarios.
+
+Four SSH behaviour tests use mocked commands to verify that:
+
+1. Disabled root login produces `PASS`.
+2. Enabled root login produces `FAIL`.
+3. Enabled password authentication produces `REVIEW`.
+4. Unavailable SSH configuration produces `REVIEW`.
+
+Latest local test result:
+
+```text
+Results: 16 passed, 0 failed
+```
+
+These tests validate the behaviour covered by the test suite. They do not prove that every security control works correctly on every Linux distribution.
+
+## ⚙️ Continuous Integration
+
+The repository uses GitHub Actions to validate changes automatically.
+
+The CI workflow includes:
+
+- ShellCheck static analysis.
+- Bash syntax validation.
+- Automated test execution.
+
+The workflow has passed on the latest verified run.
+
+- **Repository:** [AdenTechLab/linux-server-hardening](https://github.com/AdenTechLab/linux-server-hardening)
+- **Workflow:** `.github/workflows/security-audit.yml`
 
 ## 🔐 Risk Mitigation
 
-| Security Risk | Planned or Implemented Control | Security Benefit |
+| Security Risk | Implemented Control | Intended Benefit |
 |---|---|---|
-| Unauthorised SSH access | SSH configuration auditing and secure authentication settings | Helps reduce the risk of unauthorised access |
-| Direct root login | Review and disable SSH root login where appropriate | Reduces exposure of the root account |
-| Unnecessary network exposure | UFW firewall configuration | Restricts unwanted incoming connections |
-| Unpatched vulnerabilities | System updates and automatic security updates | Reduces exposure to known vulnerabilities |
-| Unnecessary running services | Review active services and listening ports | Helps reduce the attack surface |
-| Excessive file permissions | Audit sensitive system file permissions | Helps prevent unauthorised access |
-| Undetected misconfigurations | Automated Bash security audit | Improves consistency of security checks |
-| Limited security visibility | Audit summaries and test results | Makes potential security issues easier to identify |
+| SSH root login enabled | Effective SSH setting check | Identifies direct root-login exposure |
+| SSH password authentication enabled | Effective SSH setting check | Highlights authentication settings requiring review |
+| Excessive file permissions | Permission policy checks | Identifies potentially over-permissive system files |
+| Undetected configuration issues | Automated Bash audit | Makes selected checks repeatable |
+| Inconsistent validation | Automated tests and ShellCheck | Helps catch regressions and scripting errors |
+| Limited visibility of findings | Summary report and recommendations | Makes results easier to review |
 
-*Note: Controls must be configured and verified on the target server before they can be reported as fully implemented.*
+Additional controls, including firewall configuration, automatic security updates and running-service hardening, remain planned work rather than completed features.
 
 ## 🖥️ Manual Security Validation
 
-The following commands can be used to validate additional security controls on an Ubuntu Server.
+The following commands can be used to investigate security settings on a suitable Ubuntu Server environment.
 
-**Validate SSH configuration**
+**Validate SSH configuration syntax**
 
 ```bash
 sudo sshd -t
 ```
 
-**Check firewall configuration**
+**Inspect effective SSH settings**
+
+```bash
+sudo sshd -T | grep -E '^(permitrootlogin|passwordauthentication) '
+```
+
+**Check firewall status**
 
 ```bash
 sudo ufw status verbose
@@ -104,23 +156,21 @@ sudo ss -tulpen
 systemctl --failed
 ```
 
-**Run the automated audit**
-
-Use the repository's audit script to generate a security summary and review any `FAIL` or `REVIEW` findings.
+These commands are manual validation examples. Including them in this README does not mean the project automatically performs all these checks.
 
 ## 🚀 Future Improvements
 
-- Remediate and revalidate identified SSH security findings.
-- Remove duplicate SSH evaluation logic.
-- Expand automated tests to cover additional security scenarios.
-- Integrate automated checks into GitHub Actions.
-- Add before-and-after security audit examples.
-- Document remediation steps and verification evidence.
-- Expand checks for firewall rules, system updates and exposed services.
+- Add automated tests for sensitive file permission policy decisions.
+- Expand audit coverage for firewall configuration and listening services.
+- Add checks for system updates and security patch status.
+- Improve SSH checks for connection-specific `Match` configuration rules.
+- Expand remediation recommendations for file permission findings.
+- Add representative before-and-after audit reports.
+- Document verification procedures for each implemented security control.
 
-## 📈 Project Outcomes
+## 📈 Skills Demonstrated
 
-This project demonstrates practical experience with:
+This project demonstrates practical work with:
 
 - Linux command-line administration.
 - Bash scripting and automation.
@@ -128,8 +178,9 @@ This project demonstrates practical experience with:
 - Linux file permissions.
 - Security auditing and misconfiguration detection.
 - Automated testing and static analysis.
-- Git, GitHub and version control workflows.
-- Security-focused troubleshooting and documentation.
+- Git, GitHub and version control.
+- CI/CD workflow configuration.
+- Technical documentation and troubleshooting.
 
 These skills are relevant to entry-level DevOps, Cloud Engineering, Linux Administration and Cybersecurity roles.
 
@@ -140,13 +191,14 @@ These skills are relevant to entry-level DevOps, Cloud Engineering, Linux Admini
 - [UFW Manual](https://manpages.ubuntu.com/manpages/noble/en/man8/ufw.8.html)
 - [Bash Reference Manual](https://www.gnu.org/software/bash/manual/)
 - [ShellCheck](https://www.shellcheck.net/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
 
-## ⚠️ Disclaimer
+## ⚠️ Limitations and Disclaimer
 
-This project is intended for educational purposes. Test configuration changes in a controlled environment before applying them to production systems. Always maintain an alternative access method before changing SSH or firewall settings.
+This is an educational project developed and tested in a Codespaces container. Results from the container do not establish the security of the host system or a production server.
 
-A successful audit does not guarantee that a system is completely secure. Findings should be reviewed in context and verified against the intended security requirements.
+Some checks may return `REVIEW` when configuration files, tools or permissions are unavailable. Permission policies may also need adjustment for different distributions.
 
----
+The audit provides selected checks and recommendations; it is not a comprehensive vulnerability scanner and does not guarantee that a system is secure. Findings should be investigated and verified against the target system's security requirements.
 
-**Project status:** In progress. The Bash audit script has passed its current automated tests and ShellCheck validation. Additional hardening, remediation and continuous integration work remain.
+Test configuration changes in a controlled environment before applying them to production systems. Maintain an alternative administrative access method before changing SSH or firewall settings.
